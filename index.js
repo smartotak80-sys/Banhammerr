@@ -265,5 +265,120 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
 // ------------------ LOGIN ------------------
 client.login(process.env.DISCORD_TOKEN);
-                        
 
+// ------------------ Оголошення ------------------
+require("dotenv").config();
+const {
+    Client,
+    GatewayIntentBits,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    AttachmentBuilder,
+    EmbedBuilder,
+    Events
+} = require("discord.js");
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
+
+// ==== НАЛАШТУЙ ====
+// ID каналу, де має стояти кнопка
+const ANNOUNCE_CHANNEL_ID = "ВСТАВ_ТУТ_ID_КАНАЛУ";
+
+client.once("ready", async () => {
+    console.log(`Бот запущений як ${client.user.tag}`);
+
+    const channel = await client.channels.fetch(ANNOUNCE_CHANNEL_ID);
+    if (!channel) return console.log("❌ Канал не знайдено!");
+
+    // Створюємо кнопку-банер
+    const bannerButton = new ButtonBuilder()
+        .setCustomId("create_announce")
+        .setStyle(ButtonStyle.Primary)
+        .setLabel("📢 Створити оголошення")
+        .setEmoji("📝");
+
+    const row = new ActionRowBuilder().addComponents(bannerButton);
+
+    // Чистимо канал і ставимо кнопку
+    await channel.bulkDelete(50).catch(() => {});
+    await channel.send({
+        content: "Натисни банер нижче, щоб створити оголошення:",
+        components: [row]
+    });
+
+    console.log("Кнопку встановлено у каналі!");
+});
+
+// ====== Натискання кнопки ======
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === "create_announce") {
+        const modal = new ModalBuilder()
+            .setCustomId("announce_modal")
+            .setTitle("Створення оголошення");
+
+        const textInput = new TextInputBuilder()
+            .setCustomId("announce_text")
+            .setLabel("Введи текст оголошення")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(textInput)
+        );
+
+        await interaction.showModal(modal);
+    }
+});
+
+// ====== Обробка модального вікна ======
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isModalSubmit()) return;
+
+    if (interaction.customId === "announce_modal") {
+        const text = interaction.fields.getTextInputValue("announce_text");
+
+        await interaction.reply("Надішли фото або напиши `без фото`.");
+
+        const filter = (m) => m.author.id === interaction.user.id;
+        const msg = await interaction.channel.awaitMessages({
+            filter,
+            max: 1,
+            time: 60000
+        });
+
+        const message = msg.first();
+        let attachment = null;
+
+        if (message.attachments.size > 0) {
+            const file = message.attachments.first();
+            attachment = new AttachmentBuilder(file.url, { name: "photo.png" });
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle("📢 Оголошення")
+            .setDescription(text)
+            .setColor("#00AAFF")
+            .setFooter({ text: `Автор: ${interaction.user.username}` })
+            .setTimestamp();
+
+        if (attachment) embed.setImage("attachment://photo.png");
+
+        if (attachment) {
+            await interaction.followUp({
+                embeds: [embed],
+                files: [attachment]
+            });
+        } else {
+        
