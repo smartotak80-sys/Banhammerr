@@ -213,57 +213,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         return interaction.update({ content: "Заявку відхилено!", components: [] });
     }
-
-    // ---------- ОГОЛОШЕННЯ ----------
-    if (interaction.isButton() && interaction.customId === "create_announce") {
-        const modal = new ModalBuilder()
-            .setCustomId("announce_modal")
-            .setTitle("Створення оголошення");
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(
-                new TextInputBuilder()
-                    .setCustomId("announce_text")
-                    .setLabel("Текст оголошення")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setRequired(true)
-            )
-        );
-
-        return interaction.showModal(modal);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === "announce_modal") {
-        const text = interaction.fields.getTextInputValue("announce_text");
-
-        await interaction.reply("Надішли фото або напиши `без фото`.");
-
-        const filter = (m) => m.author.id === interaction.user.id;
-        const msg = await interaction.channel.awaitMessages({ filter, max: 1, time: 60000 });
-        const message = msg.first();
-        let attachment = null;
-
-        if (message.attachments.size > 0) {
-            const file = message.attachments.first();
-            attachment = new AttachmentBuilder(file.url, { name: "photo.png" });
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle("📢 Оголошення")
-            .setDescription(text)
-            .setColor("#00AAFF")
-            .setFooter({ text: `Автор: ${interaction.user.username}` })
-            .setTimestamp();
-
-        if (attachment) embed.setImage("attachment://photo.png");
-
-        await interaction.followUp({
-            embeds: [embed],
-            files: attachment ? [attachment] : []
-        });
-    }
-});
-
 // ------------------ ПРИВАТНІ КАНАЛИ ------------------
 client.on("voiceStateUpdate", async (oldState, newState) => {
     const guild = newState.guild;
@@ -316,3 +265,4 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
 // ------------------ LOGIN ------------------
 client.login(process.env.DISCORD_TOKEN);
+
