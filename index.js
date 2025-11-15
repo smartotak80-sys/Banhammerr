@@ -1,171 +1,186 @@
-client.on(Events.InteractionCreate, async (interaction) => {
-  try {
-    // лог для дебагу
-    console.log(`[Interaction] type=${interaction.type} user=${interaction.user?.tag} id=${interaction.id}`);
+require("dotenv").config();
+const {
+    Client,
+    GatewayIntentBits,
+    Partials,
+    EmbedBuilder,
+    ButtonBuilder,
+    ActionRowBuilder,
+    ButtonStyle,
+    Events,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+} = require("discord.js");
 
-    // ---------- НАТИСК КНОПКИ ----------
-    if (interaction.isButton() && interaction.customId === "apply") {
-      // showModal має виконатись якомога швидше — без await перед ним
-      const modal = new ModalBuilder()
-        .setCustomId("application_form")
-        .setTitle("Заявка");
+// ------------------ КЛІЄНТ ------------------
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildVoiceStates
+    ],
+    partials: [Partials.Channel]
+});
 
-      const fields = [
-        new TextInputBuilder()
-          .setCustomId("discord")
-          .setLabel("Ваш Discord (нік)")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true),
+// ------------------ ЗМІННІ ------------------
+const APPLICATION_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;
+const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
 
-        new TextInputBuilder()
-          .setCustomId("rlNameAge")
-          .setLabel("Ваше імʼя та вік")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true),
+// ------------------ КНОПКА ЗАЯВКИ ------------------
+const applicationButton = new ButtonBuilder()
+    .setCustomId("apply")
+    .setLabel("Подати заявку")
+    .setStyle(ButtonStyle.Success)
+    .setEmoji("✉️");
 
-        new TextInputBuilder()
-          .setCustomId("online")
-          .setLabel("Онлайн / Часовий пояс")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true),
+// ------------------ ready ------------------
+client.once("ready", async () => {
+    console.log(`✅ Увійшов як ${client.user.tag}`);
 
-        new TextInputBuilder()
-          .setCustomId("families")
-          .setLabel("Попередні сімʼї / де були")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true),
+    const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID);
+    if (!channel) return console.log("❌ Не знайдено канал для кнопки заявки");
 
-        new TextInputBuilder()
-          .setCustomId("recoilVideo")
-          .setLabel("Посилання на відео стрільби (YouTube)")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-      ];
-
-      modal.addComponents(fields.map(f => new ActionRowBuilder().addComponents(f)));
-
-      // викликаємо негайно
-      await interaction.showModal(modal);
-      return;
-    }
-
-    // ---------- ОТРИМАННЯ ЗАЯВКИ ----------
-    if (interaction.isModalSubmit() && interaction.customId === "application_form") {
-      // тут можна виконувати асинхронні операції (всі вони після showModal, тому без таймаутів)
-      const embed = new EmbedBuilder()
-        .setTitle("📥 Нова заявка")
-        .addFields(
-          { name: "Discord", value: interaction.fields.getTextInputValue("discord") },
-          { name: "Імʼя / Вік", value: interaction.fields.getTextInputValue("rlNameAge") },
-          { name: "Онлайн", value: interaction.fields.getTextInputValue("online") },
-          { name: "Сімʼї", value: interaction.fields.getTextInputValue("families") },
-          { name: "Відео стрільби", value: interaction.fields.getTextInputValue("recoilVideo") }
+    const embed = new EmbedBuilder()
+        .setTitle("📢 ВІДКРИТО ПОДАННЯ ЗАЯВОК")
+        .setDescription(
+            "Ви можете подати заявку.\n\n" +
+            "Після заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n" +
+            "⚠️ Переконайтесь, що відкриті DM!"
         )
         .setColor("#808080")
-        .setFooter({ text: `Від ${interaction.user.tag}` });
+        .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відхилити").setStyle(ButtonStyle.Danger)
-      );
+    await channel.send({
+        embeds: [embed],
+        components: [new ActionRowBuilder().addComponents(applicationButton)]
+    });
+});
 
-      // Важливо: fetch каналу може тривати — ми тут вже після showModal, це безпечно
-      const recruitChannel = await client.channels.fetch(RECRUIT_CHANNEL_ID);
-      await recruitChannel.send({ embeds: [embed], components: [row] });
+// ------------------ INTERACTIONS ------------------
+client.on(Events.InteractionCreate, async (interaction) => {
 
-      // Відповідаємо користувачу — використовуючи flags:64
-      return interaction.reply({ content: "✅ Заявка надіслана!", flags: 64 });
+    // ---------- КНОПКА ПОДАТИ ЗАЯВКУ ----------
+    if (interaction.isButton() && interaction.customId === "apply") {
+
+        const modal = new ModalBuilder()
+            .setCustomId("application_form")
+            .setTitle("Заявка на вступ");
+
+        const fields = [
+            new TextInputBuilder().setCustomId("discord").setLabel("Ваш Discord").setStyle(TextInputStyle.Short).setRequired(true),
+            new TextInputBuilder().setCustomId("rlNameAge").setLabel("RL Ім’я / Вік").setStyle(TextInputStyle.Short).setRequired(true),
+            new TextInputBuilder().setCustomId("online").setLabel("Онлайн / Часовий пояс").setStyle(TextInputStyle.Short).setRequired(true),
+            new TextInputBuilder().setCustomId("families").setLabel("Де були раніше (сімʼї)").setStyle(TextInputStyle.Paragraph).setRequired(true),
+            new TextInputBuilder().setCustomId("recoilVideo").setLabel("Відео відкату стрільби (YouTube)").setStyle(TextInputStyle.Short).setRequired(true)
+        ];
+
+        modal.addComponents(
+            ...fields.map(f => new ActionRowBuilder().addComponents(f))
+        );
+
+        return interaction.showModal(modal);
+    }
+
+    // ---------- МОДАЛ ЗАЯВКИ ----------
+    if (interaction.isModalSubmit() && interaction.customId === "application_form") {
+
+        const embed = new EmbedBuilder()
+            .setTitle("📥 Нова заявка")
+            .addFields(
+                { name: "Discord", value: interaction.fields.getTextInputValue("discord") },
+                { name: "RL Ім’я / Вік", value: interaction.fields.getTextInputValue("rlNameAge") },
+                { name: "Онлайн / Часовий пояс", value: interaction.fields.getTextInputValue("online") },
+                { name: "Сімʼї", value: interaction.fields.getTextInputValue("families") },
+                { name: "Відео стрільби", value: interaction.fields.getTextInputValue("recoilVideo") },
+            )
+            .setColor("#808080")
+            .setFooter({ text: `Від ${interaction.user.tag}` });
+
+        const recruitChannel = await client.channels.fetch(RECRUIT_CHANNEL_ID);
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відмовити").setStyle(ButtonStyle.Danger)
+        );
+
+        await recruitChannel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({ content: "✅ Заявку надіслано!", ephemeral: true });
     }
 
     // ---------- ПРИЙНЯТИ ----------
     if (interaction.isButton() && interaction.customId.startsWith("accept_")) {
-      const userId = interaction.customId.split("_")[1];
+        const userId = interaction.customId.split("_")[1];
 
-      const modal = new ModalBuilder()
-        .setTitle("Повідомлення про прийняття")
-        .setCustomId(`accept_form_${userId}`)
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("response")
-              .setLabel("Повідомлення користувачу")
-              .setStyle(TextInputStyle.Paragraph)
-              .setRequired(true)
-          )
+        const modal = new ModalBuilder()
+            .setCustomId(`accept_form_${userId}`)
+            .setTitle("Повідомлення про прийняття");
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId("response")
+                    .setLabel("Відповідь користувачу")
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true)
+            )
         );
 
-      await interaction.showModal(modal);
-      return;
+        return interaction.showModal(modal);
     }
 
-    // ---------- НАДСИЛАННЯ ПРИЙНЯТТЯ ----------
+    // ---------- ВІДПОВІДЬ ПРО ПРИЙНЯТТЯ ----------
     if (interaction.isModalSubmit() && interaction.customId.startsWith("accept_form_")) {
-      const userId = interaction.customId.split("_")[2];
-      const user = await client.users.fetch(userId).catch(e => null);
-      const message = interaction.fields.getTextInputValue("response");
+        const userId = interaction.customId.split("_")[2];
+        const user = await client.users.fetch(userId);
 
-      if (user) {
-        await user.send(`✅ Ваша заявка **прийнята**!\n\n${message}`).catch(() => {});
-      }
+        const text = interaction.fields.getTextInputValue("response");
 
-      // оновлюємо повідомлення в каналі (якщо modal був відкритий з нього)
-      if (interaction.message) {
-        await interaction.update({ content: "Заявку прийнято!", components: [], embeds: interaction.message.embeds }).catch(() => {});
-      } else {
-        // якщо interaction.message немає — просто підтверджуємо модально
-        await interaction.reply({ content: "Відповідь надіслана!", flags: 64 }).catch(() => {});
-      }
-      return;
+        await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
+
+        return interaction.update({ content: "Відповідь надіслана!", components: [], embeds: interaction.message.embeds });
     }
 
     // ---------- ВІДХИЛИТИ ----------
     if (interaction.isButton() && interaction.customId.startsWith("decline_")) {
-      const userId = interaction.customId.split("_")[1];
+        const userId = interaction.customId.split("_")[1];
 
-      const modal = new ModalBuilder()
-        .setTitle("Причина відмови")
-        .setCustomId(`decline_form_${userId}`)
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("reason")
-              .setLabel("Причина")
-              .setStyle(TextInputStyle.Paragraph)
-              .setRequired(true)
-          )
+        const modal = new ModalBuilder()
+            .setCustomId(`decline_form_${userId}`)
+            .setTitle("Причина відмови");
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId("reason")
+                    .setLabel("Причина")
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true)
+            )
         );
 
-      await interaction.showModal(modal);
-      return;
+        return interaction.showModal(modal);
     }
 
-    // ---------- НАДСИЛАННЯ ВІДМОВИ ----------
+    // ---------- НАДІСЛАТИ ВІДМОВУ ----------
     if (interaction.isModalSubmit() && interaction.customId.startsWith("decline_form_")) {
-      const userId = interaction.customId.split("_")[2];
-      const user = await client.users.fetch(userId).catch(e => null);
-      const reason = interaction.fields.getTextInputValue("reason");
+        const userId = interaction.customId.split("_")[2];
+        const user = await client.users.fetch(userId);
 
-      if (user) {
-        await user.send(`❌ Ваша заявка **відхилена**.\nПричина: ${reason}`).catch(() => {});
-      }
+        const reason = interaction.fields.getTextInputValue("reason");
 
-      if (interaction.message) {
-        await interaction.update({ content: "Заявку відхилено!", components: [], embeds: interaction.message.embeds }).catch(() => {});
-      } else {
-        await interaction.reply({ content: "Заявку відхилено!", flags: 64 }).catch(() => {});
-      }
-      return;
+        await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
+
+        return interaction.update({
+            content: "Заявку відхилено!",
+            components: [],
+            embeds: interaction.message.embeds
+        });
     }
-
-  } catch (err) {
-    console.error("Error in InteractionCreate:", err);
-    // якщо interaction ще не відповідав — надішлемо приховане повідомлення з помилкою
-    try {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "❌ Сталася помилка. Спробуйте ще раз.", flags: 64 });
-      }
-    } catch (e) {
-      // нічого не робимо — interaction вже міг таймаутитись
-    }
-  }
 });
+
+// ------------------ LOGIN ------------------
+client.login(process.env.TOKEN);
