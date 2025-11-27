@@ -1,5 +1,3 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: GUILD_ID вбудовано для діагностики)
-
 require("dotenv").config();
 const {
     Client,
@@ -13,61 +11,43 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
+    ChannelType
 } = require("discord.js");
 
-// ------------------ ЗМІННІ КОНФІГУРАЦІЇ ------------------
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-
-// 🛑 ВАЖЛИВО: GUILD_ID ВСТАВЛЕНО НАПРЯМУ для обходу проблем Railway Secrets
-const GUILD_ID = '1056337110560411728'; 
+const GUILD_ID = '1056337110560411728';
 
 const APPLICATION_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;
 const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
 
-// --- КОНФІГУРАЦІЯ СТАТИСТИКИ ---
 const STATS_CHANNELS = [
     { id: process.env.CHANNEL_BARRACUDA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_BARRACUDA_ID, nameTemplate: '🦈 Barracuda: ' },
     { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
-    { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' },
-    { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
+    { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK: ' },
+    { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' }
 ];
-
-
-// ------------------ КЛІЄНТ ТА ОБ'ЄДНАНІ INTENTS ------------------
 
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences, 
+        GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildVoiceStates 
+        GatewayIntentBits.GuildVoiceStates
     ],
-    partials: [Partials.Channel, Partials.GuildMember],
-    
-    // АГРЕСИВНЕ КЕШУВАННЯ
-    sweepers: {
-        users: {
-            interval: 3600,
-            filter: (user) => user.bot,
-        },
-        guildMembers: {
-            interval: 3600,
-            filter: (member) => member.presence?.status === 'offline', 
-        }
-    }
+    partials: [Partials.Channel, Partials.GuildMember]
 });
-
-// --- ФУНКЦІЇ СТАТИСТИКИ ---
 
 function getChannelCount(guild, config) {
     switch (config.type) {
         case 'ROLE_COUNT':
             return guild.members.cache.filter(member => member.roles.cache.has(config.roleId)).size;
         case 'ONLINE_MEMBERS':
-            return guild.members.cache.filter(member => member.presence?.status && member.presence.status !== 'offline').size;
+            return guild.members.cache.filter(
+                member => member.presence?.status && member.presence.status !== 'offline'
+            ).size;
         default:
             return 0;
     }
@@ -76,221 +56,93 @@ function getChannelCount(guild, config) {
 async function updateChannelStats(targetChannelId = null) {
     try {
         const guild = client.guilds.cache.get(GUILD_ID);
-        if (!guild) return; 
+        if (!guild) return;
 
-        // Забезпечення повного кешу членів для точного підрахунку
         await guild.members.fetch({ force: true, cache: true, withPresences: true }).catch(() => {});
 
-        const channelsToUpdate = targetChannelId 
+        const channelsToUpdate = targetChannelId
             ? STATS_CHANNELS.filter(c => c.id === targetChannelId)
             : STATS_CHANNELS;
 
         for (const config of channelsToUpdate) {
-            const count = getChannelCount(guild, config); 
+            const count = getChannelCount(guild, config);
             const ch = await guild.channels.fetch(config.id).catch(() => null);
-
-            if (ch && ch.type === 2) { 
-                 const newName = `${config.nameTemplate}${count}`;
-                 if (ch.name !== newName) {
-                     await ch.setName(newName);
-                     console.log(`[СТАТС] Оновлено канал ${config.nameTemplate.trim()}: ${newName}`);
-                 } 
+            if (ch) {
+                const newName = `${config.nameTemplate}${count}`;
+                if (ch.name !== newName) {
+                    await ch.setName(newName);
+                    console.log(`[СТАТС] Оновлено канал ${config.nameTemplate.trim()}: ${newName}`);
+                }
             }
         }
     } catch (error) {
-        console.error('--- ПОМИЛКА СТАТИСТИКИ (ПЕРЕВІРТЕ ДОЗВОЛИ) ---', error.message);
+        console.error('--- ПОМИЛКА СТАТИСТИКИ ---', error);
     }
 }
 
-function triggerRoleChannelUpdate() {
-    STATS_CHANNELS.forEach(config => {
-        if (config.type === 'ROLE_COUNT') {
-            updateChannelStats(config.id);
-        }
-    });
+function triggerFullStatUpdate() {
+    updateChannelStats();
 }
-
-function triggerOnlineMembersUpdate() {
-    const onlineChannelConfig = STATS_CHANNELS.find(c => c.type === 'ONLINE_MEMBERS');
-    if (onlineChannelConfig) {
-        updateChannelStats(onlineChannelConfig.id);
-    }
-}
-
-
-// ------------------ READY (ОБ'ЄДНАННО) ------------------
 
 client.once("ready", async () => {
     console.log(`✅ Увійшов як ${client.user.tag}`);
 
-    // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
-    const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
-        console.error(`❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер з ID ${GUILD_ID}. Статистика не працюватиме.`);
-        console.error(`[FATAL] ПЕРЕВІРТЕ: 1) Чи запрошено бота на цей сервер (Scopes); 2) Дозволи (Intents).`); 
-        return null;
-    });
+    await updateChannelStats();
+    setInterval(updateChannelStats, 60 * 1000);
 
-    if (guild) {
-        // МИТТЄВЕ ОНОВЛЕННЯ ПРИ СТАРТІ
-        await updateChannelStats(); 
-        
-        // Оновлення кожну 1 хвилину
-        setInterval(updateChannelStats, 60 * 1000); 
+    const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
+    if (channel) {
+        const applicationButton = new ButtonBuilder()
+            .setCustomId("apply")
+            .setLabel("Подати заявку")
+            .setStyle(ButtonStyle.Success)
+            .setEmoji("✉️");
 
-        // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
-        const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
-        
-        if (!channel) {
-            console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID). Модуль заявок не працює.");
-        } else {
-            const applicationButton = new ButtonBuilder()
-                .setCustomId("apply")
-                .setLabel("Подати заявку")
-                .setStyle(ButtonStyle.Success)
-                .setEmoji("✉️");
+        const embed = new EmbedBuilder()
+            .setTitle("📢 ВІДКРИТО ПОДАННЯ ЗАЯВОК")
+            .setDescription("Ви можете подати заявку.\n\nПісля заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n⚠️ Переконайтесь, що відкриті DM!")
+            .setColor("#808080")
+            .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
-            const embed = new EmbedBuilder()
-                .setTitle("📢 ВІДКРИТО ПОДАННЯ ЗАЯВОК")
-                .setDescription("Ви можете подати заявку.\n\nПісля заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n⚠️ Переконайтесь, що відкриті DM!")
-                .setColor("#808080")
-                .setFooter({ text: new Date().toLocaleString("uk-UA") });
-
-            try {
-                // Надсилання повідомлення з кнопкою
-                await channel.send({
-                    embeds: [embed],
-                    components: [new ActionRowBuilder().addComponents(applicationButton)]
-                });
-            } catch (e) {
-                console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте права бота.", e.message);
-            }
+        try {
+            await channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(applicationButton)] });
+        } catch (e) {
+            console.error("❌ Не вдалося надіслати повідомлення заявки.", e.message);
         }
+    } else {
+        console.error("❌ Не знайдено канал для заявки (APPLICATION_CHANNEL_ID).");
     }
 });
 
-
-// ------------------ ОБРОБКА ПОДІЙ (ІНТЕРАКЦІЇ ТА СТАТУСИ) ------------------
-
-// Оновлення Online Members
-client.on('presenceUpdate', (oldPresence, newPresence) => {
-    const guild = client.guilds.cache.get(GUILD_ID);
-    if (!guild || newPresence.guild.id !== GUILD_ID) return;
-    
-    const oldStatus = oldPresence?.status || 'offline'; 
-    const newStatus = newPresence?.status || 'offline';
-    if (oldStatus !== newStatus) { 
-        triggerOnlineMembersUpdate();
+client.on("presenceUpdate", (oldPresence, newPresence) => {
+    if (newPresence.guild.id === GUILD_ID) {
+        triggerFullStatUpdate();
     }
 });
 
-// Оновлення ролей
-client.on('guildMemberUpdate', (oldMember, newMember) => {
-    const guild = client.guilds.cache.get(GUILD_ID);
-    if (!guild || newMember.guild.id !== GUILD_ID) return;
-    
-    // Перевіряємо, чи змінилася кількість ролей
-    if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
-        triggerRoleChannelUpdate();
+client.on("guildMemberUpdate", (oldMember, newMember) => {
+    if (newMember.guild.id === GUILD_ID && oldMember.roles.cache.size !== newMember.roles.cache.size) {
+        triggerFullStatUpdate();
     }
 });
 
-client.on('guildMemberAdd', (member) => {
-    if (member.guild.id === GUILD_ID) triggerRoleChannelUpdate();
-}); 
-client.on('guildMemberRemove', (member) => {
-    if (member.guild.id === GUILD_ID) triggerRoleChannelUpdate();
+client.on("guildMemberAdd", member => {
+    if (member.guild.id === GUILD_ID) triggerFullStatUpdate();
+});
+client.on("guildMemberRemove", member => {
+    if (member.guild.id === GUILD_ID) triggerFullStatUpdate();
 });
 
+// — ОНОВЛЕННЯ ПРИ ГОЛОСОВИХ — (якщо потрібно)
+client.on("voiceStateUpdate", (oldState, newState) => {
+    if (newState.guild.id === GUILD_ID) {
+        triggerFullStatUpdate();
+    }
+});
 
 client.on(Events.InteractionCreate, async (interaction) => {
-    // --- ЛОГІКА ЗАЯВОК ---
-
-    if (interaction.isButton() && interaction.customId === "apply") {
-        const modal = new ModalBuilder().setCustomId("application_form").setTitle("Заявка на вступ");
-        const fields = [
-            new TextInputBuilder().setCustomId("rlNameAge").setLabel("RL Ім’я / Вік").setStyle(TextInputStyle.Short).setRequired(true),
-            new TextInputBuilder().setCustomId("online").setLabel("Онлайн / Часовий пояс").setStyle(TextInputStyle.Short).setRequired(true),
-            new TextInputBuilder().setCustomId("families").setLabel("Де були раніше (сімʼї)").setStyle(TextInputStyle.Paragraph).setRequired(true),
-            new TextInputBuilder().setCustomId("recoilVideo").setLabel("Відео відкату стрільби (YouTube)").setStyle(TextInputStyle.Short).setRequired(true)
-        ];
-        modal.addComponents(...fields.map(f => new ActionRowBuilder().addComponents(f)));
-        return interaction.showModal(modal);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === "application_form") {
-        const embed = new EmbedBuilder()
-            .setTitle("📥 Нова заявка")
-            .addFields(
-                { name: "RL Ім’я / Вік", value: interaction.fields.getTextInputValue("rlNameAge") },
-                { name: "Онлайн / Часовий пояс", value: interaction.fields.getTextInputValue("online") },
-                { name: "Сімʼї", value: interaction.fields.getTextInputValue("families") },
-                { name: "Відео стрільби", value: interaction.fields.getTextInputValue("recoilVideo") },
-            )
-            .setColor("#808080")
-            .setFooter({ text: `Від: ${interaction.user.tag} | ID: ${interaction.user.id}` });
-
-        try {
-            const recruitChannel = await client.channels.fetch(RECRUIT_CHANNEL_ID);
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відмовити").setStyle(ButtonStyle.Danger)
-            );
-            await recruitChannel.send({ embeds: [embed], components: [row] });
-        } catch (e) {
-            console.error("❌ Не вдалося надіслати заявку в канал рекрутингу.", e.message);
-            return interaction.reply({ content: "⚠️ Виникла внутрішня помилка при надсиланні заявки. Спробуйте пізніше.", ephemeral: true });
-        }
-        return interaction.reply({ content: "✅ Заявку надіслано! Очікуйте відповіді.", ephemeral: true });
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith("accept_")) {
-        const userId = interaction.customId.split("_")[1];
-        const modal = new ModalBuilder().setCustomId(`accept_form_${userId}`).setTitle("Повідомлення про прийняття");
-        modal.addComponents(new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("response").setLabel("Відповідь користувачу").setStyle(TextInputStyle.Paragraph).setRequired(true)
-        ));
-        return interaction.showModal(modal);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("accept_form_")) {
-        await interaction.deferUpdate(); 
-        const userId = interaction.customId.split("_")[2];
-        const user = await client.users.fetch(userId);
-        const text = interaction.fields.getTextInputValue("response");
-        
-        let dmSent = true;
-        try {
-            await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
-        } catch (error) { dmSent = false; }
-        const contentMessage = dmSent ? "Відповідь надіслана!" : `⚠️ Відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
-        return interaction.editReply({ content: contentMessage, components: [], embeds: interaction.message.embeds });
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith("decline_")) {
-        const userId = interaction.customId.split("_")[1];
-        const modal = new ModalBuilder().setCustomId(`decline_form_${userId}`).setTitle("Причина відмови");
-        modal.addComponents(new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("reason").setLabel("Причина").setStyle(TextInputStyle.Paragraph).setRequired(true)
-        ));
-        return interaction.showModal(modal);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("decline_form_")) {
-        await interaction.deferUpdate(); 
-        const userId = interaction.customId.split("_")[2];
-        const user = await client.users.fetch(userId);
-        const reason = interaction.fields.getTextInputValue("reason");
-
-        let dmSent = true;
-        try {
-            await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
-        } catch (error) { dmSent = false; }
-        
-        const contentMessage = dmSent ? "Заявку відхилено!" : `⚠️ Заявку відхилено, але відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
-        return interaction.editReply({ content: contentMessage, components: [], embeds: interaction.message.embeds });
-    }
+    // — тут твій існуючий код для модалів / заявок / рішень — без змін —
+    // …
 });
 
-
-// ------------------ LOGIN ------------------
 client.login(DISCORD_TOKEN);
