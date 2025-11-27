@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: Виправлено останній typo та встановлено 1 хвилину оновлення)
+// index.js (ОНОВЛЕНО: Додано лог "Пульсу" для діагностики таймера)
 
 require("dotenv").config();
 const {
@@ -95,7 +95,7 @@ async function updateChannelStats(targetChannelId = null) {
             }
         }
     } catch (error) {
-        // Виводимо більш детальну помилку, якщо вона виникає під час оновлення
+        // Виводимо більш детальну помилку
         console.error('--- ПОМИЛКА СТАТИСТИКИ (ПЕРЕВІРТЕ ДОЗВОЛИ) ---', error.message);
     }
 }
@@ -133,7 +133,10 @@ client.once("ready", async () => {
         await updateChannelStats(); 
         
         // Оновлення кожну 1 хвилину
-        setInterval(updateChannelStats, 60 * 1000); 
+        setInterval(() => {
+             console.log(`[ТАЙМЕР] Запуск оновлення статистики...`); // <<<< ЛОГ-ПУЛЬС
+             updateChannelStats();
+        }, 60 * 1000); 
 
         // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
         const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
@@ -154,7 +157,7 @@ client.once("ready", async () => {
                 .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
             try {
-                // Видаляємо попереднє повідомлення, якщо воно є (опціонально, для чистоти)
+                // Видаляємо попереднє повідомлення, якщо воно є 
                 const messages = await channel.messages.fetch({ limit: 1 });
                 if (messages.size > 0 && messages.first().author.id === client.user.id) {
                      await messages.first().delete();
