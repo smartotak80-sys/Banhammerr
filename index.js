@@ -1,4 +1,4 @@
-// index.js (ОБ'ЄДНАНА ФІНАЛЬНА СИСТЕМА)
+// index.js (ФІНАЛЬНА ВЕРСІЯ З ДІАГНОСТИКОЮ ID)
 
 require("dotenv").config();
 const {
@@ -34,15 +34,13 @@ const STATS_CHANNELS = [
 
 const client = new Client({ 
     intents: [
-        // INTENTS ДЛЯ СТАТИСТИКИ
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences, 
-        // INTENTS ДЛЯ ЗАЯВОК
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildVoiceStates // Залишено для сумісності з вашим кодом
+        GatewayIntentBits.GuildVoiceStates
     ],
     partials: [Partials.Channel]
 });
@@ -106,24 +104,35 @@ function triggerOnlineMembersUpdate() {
 client.once("ready", async () => {
     console.log(`✅ Увійшов як ${client.user.tag}`);
 
+    // --- САМОДІАГНОСТИКА ---
+    console.log("======================================");
+    console.log("  🛑 ПЕРЕВІРТЕ ID ВАШОГО СЕРВЕРА (GUILD ID):");
+    console.log(`  GUILD_ID: ${GUILD_ID}`);
+    console.log("  APPLICATION_CHANNEL_ID: Це ID, куди буде надіслана кнопка заявки.");
+    console.log(`  APPLICATION_CHANNEL_ID: ${APPLICATION_CHANNEL_ID}`);
+    console.log("  RECRUIT_CHANNEL_ID: Це ID, куди будуть надходити нові заявки.");
+    console.log(`  RECRUIT_CHANNEL_ID: ${RECRUIT_CHANNEL_ID}`);
+    console.log("======================================");
+
     // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
-    console.log('🤖 Ініціалізація модуля статистики...');
     const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
-        console.error('❌ Помилка: Не знайдено сервер (GUILD_ID). Статистика не працюватиме.', err.message);
+        console.error('❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер. Перевірте GUILD_ID!');
+        console.error(`Деталі помилки: ${err.message}`);
         return null;
     });
 
     if (guild) {
         await guild.members.fetch().catch(e => console.error("❌ Помилка: Не вдалося завантажити членів сервера. Перевірте GuildMembers Intent.", e.message));
         updateChannelStats(); 
+    } else {
+         console.error("❌ МОДУЛЬ СТАТИСТИКИ ВИМКНЕНО ЧЕРЕЗ НЕПРАВИЛЬНИЙ GUILD_ID.");
     }
     
     setInterval(updateChannelStats, 10 * 60 * 1000); 
 
     // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
-    console.log('✉️ Ініціалізація модуля заявок...');
-    const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID);
-    if (!channel) return console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID).");
+    const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
+    if (!channel) return console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID). Модуль заявок не працює.");
 
     const applicationButton = new ButtonBuilder()
         .setCustomId("apply")
@@ -133,11 +142,7 @@ client.once("ready", async () => {
 
     const embed = new EmbedBuilder()
         .setTitle("📢 ВІДКРИТО ПОДАННЯ ЗАЯВОК")
-        .setDescription(
-            "Ви можете подати заявку.\n\n" +
-            "Після заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n" +
-            "⚠️ Переконайтесь, що відкриті DM!"
-        )
+        .setDescription("Ви можете подати заявку.\n\nПісля заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n⚠️ Переконайтесь, що відкриті DM!")
         .setColor("#808080")
         .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
@@ -148,12 +153,12 @@ client.once("ready", async () => {
         });
         console.log('✅ Повідомлення з кнопкою заявки успішно надіслано.');
     } catch (e) {
-        console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте APPLICATION_CHANNEL_ID та права бота.", e.message);
+        console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте права бота.", e.message);
     }
 });
 
 
-// ------------------ ОБРОБКА ПОДІЙ СТАТИСТИКИ ------------------
+// ------------------ ОБРОБКА ПОДІЙ (ІНТЕРАКЦІЇ ТА СТАТУСИ) ------------------
 
 client.on('presenceUpdate', (oldPresence, newPresence) => {
     const oldStatus = oldPresence?.status || 'offline'; 
@@ -173,11 +178,9 @@ client.on('guildMemberAdd', () => triggerRoleChannelUpdate());
 client.on('guildMemberRemove', () => triggerRoleChannelUpdate());
 
 
-// ------------------ ОБРОБКА INTERACTION (ЗАЯВКИ) ------------------
-
 client.on(Events.InteractionCreate, async (interaction) => {
+    // ... (Логіка заявок, модалів та кнопок залишається без змін) ...
 
-    // ---------- КНОПКА ПОДАТИ ЗАЯВКУ (ВІДКРИТТЯ МОДАЛУ) ----------
     if (interaction.isButton() && interaction.customId === "apply") {
         const modal = new ModalBuilder().setCustomId("application_form").setTitle("Заявка на вступ");
         const fields = [
@@ -190,7 +193,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ---------- МОДАЛ ЗАЯВКИ (НАДСИЛАННЯ) ----------
     if (interaction.isModalSubmit() && interaction.customId === "application_form") {
         const embed = new EmbedBuilder()
             .setTitle("📥 Нова заявка")
@@ -209,17 +211,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відмовити").setStyle(ButtonStyle.Danger)
             );
-
             await recruitChannel.send({ embeds: [embed], components: [row] });
         } catch (e) {
             console.error("❌ Не вдалося надіслати заявку в канал рекрутингу.", e.message);
             return interaction.reply({ content: "⚠️ Виникла внутрішня помилка при надсиланні заявки. Спробуйте пізніше.", ephemeral: true });
         }
-
         return interaction.reply({ content: "✅ Заявку надіслано! Очікуйте відповіді.", ephemeral: true });
     }
-
-    // ---------- ПРИЙНЯТИ / ВІДХИЛИТИ ЛОГІКА (КОНТРОЛЬ) ----------
 
     if (interaction.isButton() && interaction.customId.startsWith("accept_")) {
         const userId = interaction.customId.split("_")[1];
@@ -239,10 +237,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         let dmSent = true;
         try {
             await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
-        } catch (error) {
-            dmSent = false;
-        }
-
+        } catch (error) { dmSent = false; }
         const contentMessage = dmSent ? "Відповідь надіслана!" : `⚠️ Відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
         return interaction.editReply({ content: contentMessage, components: [], embeds: interaction.message.embeds });
     }
@@ -265,9 +260,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         let dmSent = true;
         try {
             await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
-        } catch (error) {
-            dmSent = false;
-        }
+        } catch (error) { dmSent = false; }
         
         const contentMessage = dmSent ? "Заявку відхилено!" : `⚠️ Заявку відхилено, але відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
         return interaction.editReply({ content: contentMessage, components: [], embeds: interaction.message.embeds });
