@@ -53,9 +53,7 @@ client.once("ready", async () => {
         .setColor("#808080")
         .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
-    // Цей блок надсилає повідомлення лише один раз, якщо ви його не видаляли
-    // Якщо повідомлення вже існує, варто замінити цей блок на логіку перевірки
-    // або вручну видалити старе повідомлення в каналі Discord.
+    // Надсилання кнопки заявки при запуску
     // await channel.send({
     //     embeds: [embed],
     //     components: [new ActionRowBuilder().addComponents(applicationButton)]
@@ -86,24 +84,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ---------- МОДАЛ ЗАЯВКИ (ВИПРАВЛЕНО) ----------
+    // ---------- МОДАЛ ЗАЯВКИ (ОНОВЛЕНО) ----------
     if (interaction.isModalSubmit() && interaction.customId === "application_form") {
 
         const embed = new EmbedBuilder()
             .setTitle("📥 Нова заявка")
             .addFields(
-                // ВИПРАВЛЕННЯ: Використовуємо згадку користувача замість неіснуючого поля "discord"
-                { name: "Discord", value: interaction.user.toString() }, 
+                // Поле "Discord" видалено з цього списку
                 { name: "RL Ім’я / Вік", value: interaction.fields.getTextInputValue("rlNameAge") },
                 { name: "Онлайн / Часовий пояс", value: interaction.fields.getTextInputValue("online") },
                 { name: "Сімʼї", value: interaction.fields.getTextInputValue("families") },
                 { name: "Відео стрільби", value: interaction.fields.getTextInputValue("recoilVideo") },
             )
             .setColor("#808080")
-            .setFooter({ text: `Від ${interaction.user.tag}` });
+            // Інформація про користувача тепер лише у нижньому колонтитулі
+            .setFooter({ text: `Від: ${interaction.user.tag} | ID: ${interaction.user.id}` });
 
         const recruitChannel = await client.channels.fetch(RECRUIT_CHANNEL_ID);
 
+        // Кнопки Прийняти/Відмовити все ще використовують ID користувача
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відмовити").setStyle(ButtonStyle.Danger)
@@ -144,7 +143,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
 
-        // Оновлюємо оригінальне повідомлення, щоб показати, що заявка опрацьована
         return interaction.update({ content: "Відповідь надіслана!", components: [], embeds: interaction.message.embeds });
     }
 
@@ -178,7 +176,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
 
-        // Оновлюємо оригінальне повідомлення, щоб показати, що заявка опрацьована
         return interaction.update({
             content: "Заявку відхилено!",
             components: [],
