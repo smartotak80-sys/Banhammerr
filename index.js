@@ -1,4 +1,4 @@
-// index.js (ОНОВЛЕНО: Додано лог "Пульсу" для діагностики таймера)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: GUILD_ID вбудовано для діагностики)
 
 require("dotenv").config();
 const {
@@ -17,7 +17,10 @@ const {
 
 // ------------------ ЗМІННІ КОНФІГУРАЦІЇ ------------------
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const GUILD_ID = process.env.GUILD_ID;
+
+// 🛑 ВАЖЛИВО: GUILD_ID ВСТАВЛЕНО НАПРЯМУ для обходу проблем Railway Secrets
+const GUILD_ID = '1056337110560411728'; 
+
 const APPLICATION_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;
 const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
 
@@ -95,7 +98,6 @@ async function updateChannelStats(targetChannelId = null) {
             }
         }
     } catch (error) {
-        // Виводимо більш детальну помилку
         console.error('--- ПОМИЛКА СТАТИСТИКИ (ПЕРЕВІРТЕ ДОЗВОЛИ) ---', error.message);
     }
 }
@@ -124,7 +126,7 @@ client.once("ready", async () => {
     // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
     const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
         console.error(`❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер з ID ${GUILD_ID}. Статистика не працюватиме.`);
-        console.error(`[FATAL] ПЕРЕВІРТЕ: 1) Secret GUILD_ID; 2) Чи запрошено бота на цей сервер; 3) Дозволи (Intents).`); 
+        console.error(`[FATAL] ПЕРЕВІРТЕ: 1) Чи запрошено бота на цей сервер (Scopes); 2) Дозволи (Intents).`); 
         return null;
     });
 
@@ -133,10 +135,7 @@ client.once("ready", async () => {
         await updateChannelStats(); 
         
         // Оновлення кожну 1 хвилину
-        setInterval(() => {
-             console.log(`[ТАЙМЕР] Запуск оновлення статистики...`); // <<<< ЛОГ-ПУЛЬС
-             updateChannelStats();
-        }, 60 * 1000); 
+        setInterval(updateChannelStats, 60 * 1000); 
 
         // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
         const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
@@ -157,12 +156,7 @@ client.once("ready", async () => {
                 .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
             try {
-                // Видаляємо попереднє повідомлення, якщо воно є 
-                const messages = await channel.messages.fetch({ limit: 1 });
-                if (messages.size > 0 && messages.first().author.id === client.user.id) {
-                     await messages.first().delete();
-                }
-
+                // Надсилання повідомлення з кнопкою
                 await channel.send({
                     embeds: [embed],
                     components: [new ActionRowBuilder().addComponents(applicationButton)]
