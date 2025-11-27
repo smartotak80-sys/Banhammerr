@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: Готовий до запуску після npm install)
+// index.js (ОНОВЛЕНО: Оновлення статистики кожні 5 секунд)
 
 require("dotenv").config();
 const {
@@ -26,7 +26,7 @@ const STATS_CHANNELS = [
     { id: process.env.CHANNEL_BARRACUDA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_BARRACUDA_ID, nameTemplate: '🦈 Barracuda: ' },
     { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
     { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' },
-    { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
+    { id: processs.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
 ];
 
 
@@ -112,7 +112,7 @@ function triggerOnlineMembersUpdate() {
 }
 
 
-// ------------------ READY (ОБ'ЄДНАНО) ------------------
+// ------------------ READY (ОБ'ЄДНАННО) ------------------
 
 client.once("ready", async () => {
     console.log(`✅ Увійшов як ${client.user.tag}`);
@@ -131,8 +131,8 @@ client.once("ready", async () => {
         updateChannelStats(); 
     }
     
-    // Регулярне оновлення кожні 10 хвилин
-    setInterval(updateChannelStats, 10 * 60 * 1000); 
+    // Оновлення кожні 5 секунд (5000 мілісекунд)
+    setInterval(updateChannelStats, 5 * 1000); 
 
     // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
     const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
