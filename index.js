@@ -1,4 +1,4 @@
-// index.js (Об'єднана система: Статистика та Заявки)
+// index.js (ОБ'ЄДНАНА ФІНАЛЬНА СИСТЕМА)
 
 require("dotenv").config();
 const {
@@ -15,12 +15,11 @@ const {
     TextInputStyle,
 } = require("discord.js");
 
-// --- ЗМІННІ КОНФІГУРАЦІЇ (ОБИДВА БОТИ) ---
+// ------------------ ЗМІННІ КОНФІГУРАЦІЇ (ОБИДВА БОТИ) ------------------
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const APPLICATION_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;
 const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
-
 
 // --- КОНФІГУРАЦІЯ СТАТИСТИКИ ---
 const STATS_CHANNELS = [
@@ -31,8 +30,9 @@ const STATS_CHANNELS = [
 ];
 
 
-// --- КЛІЄНТ ТА ОБ'ЄДНАНІ INTENTS ---
-const client = new Client({
+// ------------------ КЛІЄНТ ТА ОБ'ЄДНАНІ INTENTS ------------------
+
+const client = new Client({ 
     intents: [
         // INTENTS ДЛЯ СТАТИСТИКИ
         GatewayIntentBits.Guilds,
@@ -47,7 +47,7 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-// ------------------ ФУНКЦІЇ СТАТИСТИКИ ------------------
+// --- ФУНКЦІЇ СТАТИСТИКИ ---
 
 function getChannelCount(guild, config) {
     switch (config.type) {
@@ -101,13 +101,12 @@ function triggerOnlineMembersUpdate() {
     }
 }
 
-
-// ------------------ ГОТОВНІСТЬ (ОБ'ЄДНАНО) ------------------
+// ------------------ READY (ОБ'ЄДНАНО) ------------------
 
 client.once("ready", async () => {
     console.log(`✅ Увійшов як ${client.user.tag}`);
 
-    // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ (Stats Bot) ---
+    // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
     console.log('🤖 Ініціалізація модуля статистики...');
     const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
         console.error('❌ Помилка: Не знайдено сервер (GUILD_ID). Статистика не працюватиме.', err.message);
@@ -119,13 +118,12 @@ client.once("ready", async () => {
         updateChannelStats(); 
     }
     
-    // Запускаємо регулярне оновлення
     setInterval(updateChannelStats, 10 * 60 * 1000); 
 
-    // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК (Application Bot) ---
+    // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
     console.log('✉️ Ініціалізація модуля заявок...');
     const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID);
-    if (!channel) return console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID)");
+    if (!channel) return console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID).");
 
     const applicationButton = new ButtonBuilder()
         .setCustomId("apply")
@@ -150,12 +148,12 @@ client.once("ready", async () => {
         });
         console.log('✅ Повідомлення з кнопкою заявки успішно надіслано.');
     } catch (e) {
-        console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте права бота.", e.message);
+        console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте APPLICATION_CHANNEL_ID та права бота.", e.message);
     }
 });
 
 
-// ------------------ ОБРОБКА ПОДІЙ СТАТИСТИКИ (Stats Events) ------------------
+// ------------------ ОБРОБКА ПОДІЙ СТАТИСТИКИ ------------------
 
 client.on('presenceUpdate', (oldPresence, newPresence) => {
     const oldStatus = oldPresence?.status || 'offline'; 
@@ -175,34 +173,25 @@ client.on('guildMemberAdd', () => triggerRoleChannelUpdate());
 client.on('guildMemberRemove', () => triggerRoleChannelUpdate());
 
 
-// ------------------ ОБРОБКА INTERACTION (Application Events) ------------------
+// ------------------ ОБРОБКА INTERACTION (ЗАЯВКИ) ------------------
 
 client.on(Events.InteractionCreate, async (interaction) => {
 
     // ---------- КНОПКА ПОДАТИ ЗАЯВКУ (ВІДКРИТТЯ МОДАЛУ) ----------
     if (interaction.isButton() && interaction.customId === "apply") {
-
-        const modal = new ModalBuilder()
-            .setCustomId("application_form")
-            .setTitle("Заявка на вступ");
-
+        const modal = new ModalBuilder().setCustomId("application_form").setTitle("Заявка на вступ");
         const fields = [
             new TextInputBuilder().setCustomId("rlNameAge").setLabel("RL Ім’я / Вік").setStyle(TextInputStyle.Short).setRequired(true),
             new TextInputBuilder().setCustomId("online").setLabel("Онлайн / Часовий пояс").setStyle(TextInputStyle.Short).setRequired(true),
             new TextInputBuilder().setCustomId("families").setLabel("Де були раніше (сімʼї)").setStyle(TextInputStyle.Paragraph).setRequired(true),
             new TextInputBuilder().setCustomId("recoilVideo").setLabel("Відео відкату стрільби (YouTube)").setStyle(TextInputStyle.Short).setRequired(true)
         ];
-
-        modal.addComponents(
-            ...fields.map(f => new ActionRowBuilder().addComponents(f))
-        );
-
+        modal.addComponents(...fields.map(f => new ActionRowBuilder().addComponents(f)));
         return interaction.showModal(modal);
     }
 
     // ---------- МОДАЛ ЗАЯВКИ (НАДСИЛАННЯ) ----------
     if (interaction.isModalSubmit() && interaction.customId === "application_form") {
-
         const embed = new EmbedBuilder()
             .setTitle("📥 Нова заявка")
             .addFields(
@@ -216,7 +205,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         try {
             const recruitChannel = await client.channels.fetch(RECRUIT_CHANNEL_ID);
-
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відмовити").setStyle(ButtonStyle.Danger)
@@ -242,15 +230,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    if (interaction.isButton() && interaction.customId.startsWith("decline_")) {
-        const userId = interaction.customId.split("_")[1];
-        const modal = new ModalBuilder().setCustomId(`decline_form_${userId}`).setTitle("Причина відмови");
-        modal.addComponents(new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("reason").setLabel("Причина").setStyle(TextInputStyle.Paragraph).setRequired(true)
-        ));
-        return interaction.showModal(modal);
-    }
-
     if (interaction.isModalSubmit() && interaction.customId.startsWith("accept_form_")) {
         await interaction.deferUpdate(); 
         const userId = interaction.customId.split("_")[2];
@@ -261,12 +240,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
         try {
             await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
         } catch (error) {
-            console.error(`Не вдалося надіслати DM (Прийнято) користувачу ${userId}:`, error.message);
             dmSent = false;
         }
 
         const contentMessage = dmSent ? "Відповідь надіслана!" : `⚠️ Відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
         return interaction.editReply({ content: contentMessage, components: [], embeds: interaction.message.embeds });
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("decline_")) {
+        const userId = interaction.customId.split("_")[1];
+        const modal = new ModalBuilder().setCustomId(`decline_form_${userId}`).setTitle("Причина відмови");
+        modal.addComponents(new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("reason").setLabel("Причина").setStyle(TextInputStyle.Paragraph).setRequired(true)
+        ));
+        return interaction.showModal(modal);
     }
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith("decline_form_")) {
@@ -279,7 +266,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         try {
             await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
         } catch (error) {
-            console.error(`Не вдалося надіслати DM (Відхилено) користувачу ${userId}:`, error.message);
             dmSent = false;
         }
         
