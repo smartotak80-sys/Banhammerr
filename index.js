@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: Миттєве Оновлення + Всі Виправлення + Надзвичайна Надійність)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: Виправлено processs)
 
 require("dotenv").config();
 const {
@@ -24,7 +24,7 @@ const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
 // --- КОНФІГУРАЦІЯ СТАТИСТИКИ ---
 const STATS_CHANNELS = [
     { id: process.env.CHANNEL_BARRACUDA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_BARRACUDA_ID, nameTemplate: '🦈 Barracuda: ' },
-    { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: processs.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
+    { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
     { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' },
     { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
 ];
@@ -64,7 +64,6 @@ function getChannelCount(guild, config) {
         case 'ROLE_COUNT':
             return guild.members.cache.filter(member => member.roles.cache.has(config.roleId)).size;
         case 'ONLINE_MEMBERS':
-            // Перевіряємо присутність у кеші та статус
             return guild.members.cache.filter(member => member.presence?.status && member.presence.status !== 'offline').size;
         default:
             return 0;
@@ -125,7 +124,6 @@ client.once("ready", async () => {
     });
 
     if (guild) {
-        // Забезпечення повного кешу для першого підрахунку
         await guild.members.fetch().catch(e => console.error("❌ Помилка: Не вдалося завантажити членів сервера. Перевірте GuildMembers Intent.", e.message));
         
         // МИТТЄВЕ ОНОВЛЕННЯ ПРИ СТАРТІ
@@ -164,17 +162,10 @@ client.once("ready", async () => {
 
 // ------------------ ОБРОБКА ПОДІЙ (ІНТЕРАКЦІЇ ТА СТАТУСИ) ------------------
 
-// Оновлення Online Members (Остаточна версія з примусовим оновленням)
-client.on('presenceUpdate', async (oldPresence, newPresence) => {
-    // Агресивна перевірка для великих серверів, де дані часто неповні
-    const guild = newPresence.guild || oldPresence.guild;
-    if (guild && (newPresence.partial || newPresence.member?.partial)) {
-        await guild.members.fetch({ user: newPresence.user.id }).catch(() => {});
-    }
-
+// Оновлення Online Members
+client.on('presenceUpdate', (oldPresence, newPresence) => {
     const oldStatus = oldPresence?.status || 'offline'; 
     const newStatus = newPresence?.status || 'offline';
-    // Тригер спрацює миттєво при зміні статусу
     if (oldStatus !== newStatus) { 
         triggerOnlineMembersUpdate();
     }
@@ -182,7 +173,6 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
 
 // Оновлення ролей
 client.on('guildMemberUpdate', (oldMember, newMember) => {
-    // Примусове витягування даних, якщо вони часткові
     if (oldMember.partial) oldMember.fetch().catch(() => {}); 
     if (newMember.partial) newMember.fetch().catch(() => {});
     
@@ -196,7 +186,7 @@ client.on('guildMemberRemove', () => triggerRoleChannelUpdate());
 
 
 client.on(Events.InteractionCreate, async (interaction) => {
-    // --- ЛОГІКА ЗАЯВОК (ПРАЦЮЄ БЕЗ ЗМІН) ---
+    // --- ЛОГІКА ЗАЯВОК ---
 
     if (interaction.isButton() && interaction.customId === "apply") {
         const modal = new ModalBuilder().setCustomId("application_form").setTitle("Заявка на вступ");
