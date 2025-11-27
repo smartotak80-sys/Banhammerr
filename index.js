@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: Виправлено останній typo)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: Виправлено останній typo та встановлено 1 хвилину оновлення)
 
 require("dotenv").config();
 const {
@@ -26,7 +26,6 @@ const STATS_CHANNELS = [
     { id: process.env.CHANNEL_BARRACUDA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_BARRACUDA_ID, nameTemplate: '🦈 Barracuda: ' },
     { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
     { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' },
-    // ВИПРАВЛЕНО TYPO ТУТ: processs.env на process.env
     { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
 ];
 
@@ -76,6 +75,9 @@ async function updateChannelStats(targetChannelId = null) {
         const guild = client.guilds.cache.get(GUILD_ID);
         if (!guild) return; 
 
+        // Забезпечення повного кешу членів для точного підрахунку
+        await guild.members.fetch({ force: true, cache: true, withPresences: true }).catch(() => {});
+
         const channelsToUpdate = targetChannelId 
             ? STATS_CHANNELS.filter(c => c.id === targetChannelId)
             : STATS_CHANNELS;
@@ -93,7 +95,8 @@ async function updateChannelStats(targetChannelId = null) {
             }
         }
     } catch (error) {
-        console.error('--- ПОМИЛКА СТАТИСТИКИ ---', error.message);
+        // Виводимо більш детальну помилку, якщо вона виникає під час оновлення
+        console.error('--- ПОМИЛКА СТАТИСТИКИ (ПЕРЕВІРТЕ ДОЗВОЛИ) ---', error.message);
     }
 }
 
@@ -120,44 +123,51 @@ client.once("ready", async () => {
 
     // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
     const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
-        console.error('❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер. Статистика не працюватиме.', err.message);
-        console.error(`[FATAL] Перевірте Secret GUILD_ID: Чи він встановлений і чи бот має до нього доступ?`); 
+        console.error(`❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер з ID ${GUILD_ID}. Статистика не працюватиме.`);
+        console.error(`[FATAL] ПЕРЕВІРТЕ: 1) Secret GUILD_ID; 2) Чи запрошено бота на цей сервер; 3) Дозволи (Intents).`); 
         return null;
     });
 
     if (guild) {
-        await guild.members.fetch().catch(e => console.error("❌ Помилка: Не вдалося завантажити членів сервера. Перевірте GuildMembers Intent.", e.message));
-        
         // МИТТЄВЕ ОНОВЛЕННЯ ПРИ СТАРТІ
-        updateChannelStats(); 
-    }
-    
-    // Оновлення кожну 1 хвилину
-    setInterval(updateChannelStats, 60 * 1000); 
+        await updateChannelStats(); 
+        
+        // Оновлення кожну 1 хвилину
+        setInterval(updateChannelStats, 60 * 1000); 
 
-    // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
-    const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
-    if (!channel) return console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID). Модуль заявок не працює.");
+        // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
+        const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
+        
+        if (!channel) {
+            console.error("❌ Не знайдено канал для кнопки заявки (APPLICATION_CHANNEL_ID). Модуль заявок не працює.");
+        } else {
+            const applicationButton = new ButtonBuilder()
+                .setCustomId("apply")
+                .setLabel("Подати заявку")
+                .setStyle(ButtonStyle.Success)
+                .setEmoji("✉️");
 
-    const applicationButton = new ButtonBuilder()
-        .setCustomId("apply")
-        .setLabel("Подати заявку")
-        .setStyle(ButtonStyle.Success)
-        .setEmoji("✉️");
+            const embed = new EmbedBuilder()
+                .setTitle("📢 ВІДКРИТО ПОДАННЯ ЗАЯВОК")
+                .setDescription("Ви можете подати заявку.\n\nПісля заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n⚠️ Переконайтесь, що відкриті DM!")
+                .setColor("#808080")
+                .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
-    const embed = new EmbedBuilder()
-        .setTitle("📢 ВІДКРИТО ПОДАННЯ ЗАЯВОК")
-        .setDescription("Ви можете подати заявку.\n\nПісля заповнення заявки ви отримаєте відповідь у **DM** протягом **2–5 днів**.\n⚠️ Переконайтесь, що відкриті DM!")
-        .setColor("#808080")
-        .setFooter({ text: new Date().toLocaleString("uk-UA") });
+            try {
+                // Видаляємо попереднє повідомлення, якщо воно є (опціонально, для чистоти)
+                const messages = await channel.messages.fetch({ limit: 1 });
+                if (messages.size > 0 && messages.first().author.id === client.user.id) {
+                     await messages.first().delete();
+                }
 
-    try {
-        await channel.send({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(applicationButton)]
-        });
-    } catch (e) {
-        console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте права бота.", e.message);
+                await channel.send({
+                    embeds: [embed],
+                    components: [new ActionRowBuilder().addComponents(applicationButton)]
+                });
+            } catch (e) {
+                console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте права бота.", e.message);
+            }
+        }
     }
 });
 
@@ -166,6 +176,9 @@ client.once("ready", async () => {
 
 // Оновлення Online Members
 client.on('presenceUpdate', (oldPresence, newPresence) => {
+    const guild = client.guilds.cache.get(GUILD_ID);
+    if (!guild || newPresence.guild.id !== GUILD_ID) return;
+    
     const oldStatus = oldPresence?.status || 'offline'; 
     const newStatus = newPresence?.status || 'offline';
     if (oldStatus !== newStatus) { 
@@ -175,8 +188,8 @@ client.on('presenceUpdate', (oldPresence, newPresence) => {
 
 // Оновлення ролей
 client.on('guildMemberUpdate', (oldMember, newMember) => {
-    if (oldMember.partial) oldMember.fetch().catch(() => {}); 
-    if (newMember.partial) newMember.fetch().catch(() => {});
+    const guild = client.guilds.cache.get(GUILD_ID);
+    if (!guild || newMember.guild.id !== GUILD_ID) return;
     
     // Перевіряємо, чи змінилася кількість ролей
     if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
@@ -184,8 +197,12 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
     }
 });
 
-client.on('guildMemberAdd', () => triggerRoleChannelUpdate()); 
-client.on('guildMemberRemove', () => triggerRoleChannelUpdate());
+client.on('guildMemberAdd', (member) => {
+    if (member.guild.id === GUILD_ID) triggerRoleChannelUpdate();
+}); 
+client.on('guildMemberRemove', (member) => {
+    if (member.guild.id === GUILD_ID) triggerRoleChannelUpdate();
+});
 
 
 client.on(Events.InteractionCreate, async (interaction) => {
