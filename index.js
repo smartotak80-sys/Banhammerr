@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: Статистика + Заявки, Посилене Кешування)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: Статистика + Заявки)
 
 require("dotenv").config();
 const {
@@ -30,13 +30,15 @@ const STATS_CHANNELS = [
 ];
 
 
-// ------------------ КЛІЄНТ ТА ОБ'ЄДНАНІ INTENTS (ФІНАЛЬНА КОНФІГУРАЦІЯ) ------------------
+// ------------------ КЛІЄНТ ТА ОБ'ЄДНАНІ INTENTS ------------------
 
 const client = new Client({ 
     intents: [
+        // INTENTS ДЛЯ СТАТИСТИКИ
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences, // КРИТИЧНО ДЛЯ ONLINE MEMBERS
+        // INTENTS ДЛЯ ЗАЯВОК
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
@@ -45,15 +47,13 @@ const client = new Client({
     partials: [Partials.Channel, Partials.GuildMember],
     
     // !!! ФІНАЛЬНЕ ВИПРАВЛЕННЯ: АГРЕСИВНЕ КЕШУВАННЯ !!!
-    // Це запобігає очищенню кешу присутністі, що є єдиною причиною, чому лічильник Online Members може не працювати.
     sweepers: {
         users: {
-            interval: 3600, // Чистити рідше (1 раз на годину)
-            filter: (user) => user.bot, // Чистити лише ботів
+            interval: 3600, // Чистити рідше
+            filter: (user) => user.bot,
         },
         guildMembers: {
             interval: 3600, // Чистити рідше
-            // Фільтр дозволяє зберігати дані про присутність довше
             filter: (member) => member.presence?.status === 'offline', 
         }
     }
@@ -66,7 +66,6 @@ function getChannelCount(guild, config) {
         case 'ROLE_COUNT':
             return guild.members.cache.filter(member => member.roles.cache.has(config.roleId)).size;
         case 'ONLINE_MEMBERS':
-            // Перевіряємо наявність статусу, що підтверджує присутність у кеші
             return guild.members.cache.filter(member => member.presence?.status && member.presence.status !== 'offline').size;
         default:
             return 0;
@@ -127,12 +126,11 @@ client.once("ready", async () => {
     });
 
     if (guild) {
-        // Гарантуємо, що кеш членів заповнений (для першого підрахунку)
         await guild.members.fetch().catch(e => console.error("❌ Помилка: Не вдалося завантажити членів сервера. Перевірте GuildMembers Intent.", e.message));
         updateChannelStats(); 
     }
     
-    // Регулярне оновлення (10 хвилин)
+    // Регулярне оновлення Online Members
     setInterval(updateChannelStats, 10 * 60 * 1000); 
 
     // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
@@ -164,9 +162,8 @@ client.once("ready", async () => {
 
 // ------------------ ОБРОБКА ПОДІЙ (ІНТЕРАКЦІЇ ТА СТАТУСИ) ------------------
 
-// Оновлення Online Members
+// Оновлення Online Members (Критична функція)
 client.on('presenceUpdate', (oldPresence, newPresence) => {
-    // Тригер спрацює лише, якщо Presence Intent увімкнено
     const oldStatus = oldPresence?.status || 'offline'; 
     const newStatus = newPresence?.status || 'offline';
     if (oldStatus !== newStatus) { 
