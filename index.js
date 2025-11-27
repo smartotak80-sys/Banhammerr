@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА СИСТЕМА: СТАТИСТИКА + ЗАЯВКИ)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: Оптимізована для миттєвого оновлення ролей)
 
 require("dotenv").config();
 const {
@@ -75,6 +75,11 @@ async function updateChannelStats(targetChannelId = null) {
         const guild = client.guilds.cache.get(GUILD_ID);
         if (!guild) return; 
 
+        // Оновлюємо кеш членів сервера, якщо він старий
+        if (guild.members.cache.size < guild.memberCount) {
+             await guild.members.fetch().catch(() => {});
+        }
+
         const channelsToUpdate = targetChannelId 
             ? STATS_CHANNELS.filter(c => c.id === targetChannelId)
             : STATS_CHANNELS;
@@ -97,6 +102,8 @@ async function updateChannelStats(targetChannelId = null) {
 }
 
 function triggerRoleChannelUpdate() {
+    // Ця функція викликається при будь-якій зміні ролі/члена.
+    // Вона оновлює лише канали, які відстежують ролі.
     STATS_CHANNELS.forEach(config => {
         if (config.type === 'ROLE_COUNT') {
             updateChannelStats(config.id);
@@ -125,13 +132,14 @@ client.once("ready", async () => {
     });
 
     if (guild) {
+        // Обов'язкове завантаження членів сервера для коректного старту лічильників
         await guild.members.fetch().catch(e => console.error("❌ Помилка: Не вдалося завантажити членів сервера. Перевірте GuildMembers Intent.", e.message));
         
         // МИТТЄВЕ ОНОВЛЕННЯ ПРИ СТАРТІ
         updateChannelStats(); 
     }
     
-    // Регулярне оновлення кожні 10 хвилин
+    // Регулярне оновлення кожні 10 хвилин (як запасний варіант)
     setInterval(updateChannelStats, 10 * 60 * 1000); 
 
     // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
@@ -161,34 +169,42 @@ client.once("ready", async () => {
 });
 
 
-// ------------------ ОБРОБКА ПОДІЙ (ІНТЕРАКЦІЇ ТА СТАТУСИ) ------------------
+// ------------------ ОБРОБКА ПОДІЙ ДЛЯ МИТТЄВОГО ОНОВЛЕННЯ ------------------
 
-// Оновлення Online Members
+// Online Members: спрацьовує, коли хтось стає Online/Offline
 client.on('presenceUpdate', (oldPresence, newPresence) => {
     const oldStatus = oldPresence?.status || 'offline'; 
     const newStatus = newPresence?.status || 'offline';
+    // Оновлюємо лише, якщо статус дійсно змінився
     if (oldStatus !== newStatus) { 
         triggerOnlineMembersUpdate();
     }
 });
 
-// Оновлення ролей
+// Оновлення ролей: спрацьовує миттєво, коли члену сервера змінюють ролі
 client.on('guildMemberUpdate', (oldMember, newMember) => {
-    if (oldMember.partial) oldMember.fetch().catch(() => {}); 
-    if (newMember.partial) newMember.fetch().catch(() => {});
+    // Оскільки ми ввімкнули Intents, fetch() має працювати, але краще використовувати кеш
+    const oldRoles = oldMember.roles.cache;
+    const newRoles = newMember.roles.cache;
     
-    if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
+    // Перевіряємо, чи змінився набір ролей
+    const rolesAdded = newRoles.some(role => !oldRoles.has(role.id));
+    const rolesRemoved = oldRoles.some(role => !newRoles.has(role.id));
+    
+    if (rolesAdded || rolesRemoved) {
         triggerRoleChannelUpdate();
     }
 });
 
+// Оновлення ролей: спрацьовує, коли хтось заходить або виходить з сервера
 client.on('guildMemberAdd', () => triggerRoleChannelUpdate()); 
 client.on('guildMemberRemove', () => triggerRoleChannelUpdate());
 
 
-client.on(Events.InteractionCreate, async (interaction) => {
-    // --- ЛОГІКА ЗАЯВОК ---
+// ------------------ ЛОГІКА ЗАЯВОК (БЕЗ ЗМІН) ------------------
 
+client.on(Events.InteractionCreate, async (interaction) => {
+    // ... (Your application/modal/button logic remains here)
     if (interaction.isButton() && interaction.customId === "apply") {
         const modal = new ModalBuilder().setCustomId("application_form").setTitle("Заявка на вступ");
         const fields = [
@@ -274,7 +290,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.editReply({ content: contentMessage, components: [], embeds: interaction.message.embeds });
     }
 });
-
 
 // ------------------ LOGIN ------------------
 client.login(DISCORD_TOKEN);
