@@ -1,4 +1,4 @@
-// index.js (ОНОВЛЕНО: Оновлення статистики кожні 5 секунд)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: Виправлено останній typo)
 
 require("dotenv").config();
 const {
@@ -26,7 +26,8 @@ const STATS_CHANNELS = [
     { id: process.env.CHANNEL_BARRACUDA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_BARRACUDA_ID, nameTemplate: '🦈 Barracuda: ' },
     { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
     { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' },
-    { id: processs.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
+    // ВИПРАВЛЕНО TYPO ТУТ: processs.env на process.env
+    { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
 ];
 
 
@@ -131,8 +132,8 @@ client.once("ready", async () => {
         updateChannelStats(); 
     }
     
-    // Оновлення кожні 5 секунд (5000 мілісекунд)
-    setInterval(updateChannelStats, 5 * 1000); 
+    // Оновлення кожну 1 хвилину
+    setInterval(updateChannelStats, 60 * 1000); 
 
     // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
     const channel = await client.channels.fetch(APPLICATION_CHANNEL_ID).catch(() => null);
@@ -177,14 +178,7 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
     if (oldMember.partial) oldMember.fetch().catch(() => {}); 
     if (newMember.partial) newMember.fetch().catch(() => {});
     
-    // Перевіряємо, чи змінилася кількість ролей, щоб уникнути зайвих оновлень
-    const oldRoleIds = new Set(oldMember.roles.cache.keys());
-    const newRoleIds = new Set(newMember.roles.cache.keys());
-
-    const rolesAdded = newRoleIds.size > oldRoleIds.size && newRoleIds.has(role => !oldRoleIds.has(role));
-    const rolesRemoved = oldRoleIds.size > newRoleIds.size && oldRoleIds.has(role => !newRoleIds.has(role));
-    
-    // Краще використовувати просту перевірку розміру, вона надійніша для цього
+    // Перевіряємо, чи змінилася кількість ролей
     if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
         triggerRoleChannelUpdate();
     }
