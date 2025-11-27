@@ -53,11 +53,11 @@ client.once("ready", async () => {
         .setColor("#808080")
         .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
-    // Надсилання кнопки заявки при запуску
-    // await channel.send({
-    //     embeds: [embed],
-    //     components: [new ActionRowBuilder().addComponents(applicationButton)]
-    // });
+    // РОЗКОМЕНТОВАНИЙ БЛОК: Надсилає повідомлення з кнопкою
+    await channel.send({
+        embeds: [embed],
+        components: [new ActionRowBuilder().addComponents(applicationButton)]
+    });
 });
 
 // ------------------ INTERACTIONS ------------------
@@ -84,25 +84,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ---------- МОДАЛ ЗАЯВКИ (ОНОВЛЕНО) ----------
+    // ---------- МОДАЛ ЗАЯВКИ ----------
     if (interaction.isModalSubmit() && interaction.customId === "application_form") {
 
         const embed = new EmbedBuilder()
             .setTitle("📥 Нова заявка")
             .addFields(
-                // Поле "Discord" видалено з цього списку
                 { name: "RL Ім’я / Вік", value: interaction.fields.getTextInputValue("rlNameAge") },
                 { name: "Онлайн / Часовий пояс", value: interaction.fields.getTextInputValue("online") },
                 { name: "Сімʼї", value: interaction.fields.getTextInputValue("families") },
                 { name: "Відео стрільби", value: interaction.fields.getTextInputValue("recoilVideo") },
             )
             .setColor("#808080")
-            // Інформація про користувача тепер лише у нижньому колонтитулі
             .setFooter({ text: `Від: ${interaction.user.tag} | ID: ${interaction.user.id}` });
 
         const recruitChannel = await client.channels.fetch(RECRUIT_CHANNEL_ID);
 
-        // Кнопки Прийняти/Відмовити все ще використовують ID користувача
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel("Прийняти").setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`decline_${interaction.user.id}`).setLabel("Відмовити").setStyle(ButtonStyle.Danger)
@@ -134,16 +131,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ---------- ВІДПОВІДЬ ПРО ПРИЙНЯТТЯ ----------
+    // ---------- ВІДПОВІДЬ ПРО ПРИЙНЯТТЯ (З ОБРОБКОЮ ПОМИЛОК DM) ----------
     if (interaction.isModalSubmit() && interaction.customId.startsWith("accept_form_")) {
+        await interaction.deferUpdate(); // Відкладаємо оновлення, щоб мати час на fetch та send
+
         const userId = interaction.customId.split("_")[2];
         const user = await client.users.fetch(userId);
-
         const text = interaction.fields.getTextInputValue("response");
+        
+        let dmSent = true;
+        try {
+            await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
+        } catch (error) {
+            console.error(`Не вдалося надіслати DM (Прийнято) користувачу ${userId}:`, error.message);
+            dmSent = false;
+        }
 
-        await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
+        // Оновлюємо оригінальне повідомлення модератору
+        const contentMessage = dmSent 
+            ? "Відповідь надіслана!" 
+            : `⚠️ Відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
 
-        return interaction.update({ content: "Відповідь надіслана!", components: [], embeds: interaction.message.embeds });
+        return interaction.editReply({ 
+            content: contentMessage, 
+            components: [], 
+            embeds: interaction.message.embeds 
+        });
     }
 
     // ---------- ВІДХИЛИТИ ----------
@@ -167,17 +180,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ---------- НАДІСЛАТИ ВІДМОВУ ----------
+    // ---------- НАДІСЛАТИ ВІДМОВУ (З ОБРОБКОЮ ПОМИЛОК DM) ----------
     if (interaction.isModalSubmit() && interaction.customId.startsWith("decline_form_")) {
+        await interaction.deferUpdate(); // Відкладаємо оновлення
+
         const userId = interaction.customId.split("_")[2];
         const user = await client.users.fetch(userId);
-
         const reason = interaction.fields.getTextInputValue("reason");
 
-        await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
+        let dmSent = true;
+        try {
+            await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
+        } catch (error) {
+             console.error(`Не вдалося надіслати DM (Відхилено) користувачу ${userId}:`, error.message);
+             dmSent = false;
+        }
+        
+        // Оновлюємо оригінальне повідомлення модератору
+        const contentMessage = dmSent 
+            ? "Заявку відхилено!" 
+            : `⚠️ Заявку відхилено, але відповідь НЕ надіслана. Користувач ${user.tag} заблокував приватні повідомлення.`;
 
-        return interaction.update({
-            content: "Заявку відхилено!",
+        return interaction.editReply({
+            content: contentMessage,
             components: [],
             embeds: interaction.message.embeds
         });
