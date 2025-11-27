@@ -1,16 +1,22 @@
 {
-  "name": "banhammerbot",
+  "name": "barracuda-stats-app-bot",
   "version": "1.0.0",
-  "description": "",
-  "main": "Banhammer_Application_Bot.js",
+  "description": "Discord bot combining guild statistics tracking and member application system.",
+  "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "discord",
+    "discord.js",
+    "stats",
+    "applications"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "discord.js": "^14.21.0",
-    "dotenv": "^17.2.1"
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
   }
 }
