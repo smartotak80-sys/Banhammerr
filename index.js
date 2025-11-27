@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ: Виправлено typo та додано надійне логування)
+// index.js (ФІНАЛЬНА СИСТЕМА: СТАТИСТИКА + ЗАЯВКИ)
 
 require("dotenv").config();
 const {
@@ -24,7 +24,6 @@ const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
 // --- КОНФІГУРАЦІЯ СТАТИСТИКИ ---
 const STATS_CHANNELS = [
     { id: process.env.CHANNEL_BARRACUDA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_BARRACUDA_ID, nameTemplate: '🦈 Barracuda: ' },
-    // ВИПРАВЛЕНО: processs.env.ROLE_AKADEMKA_ID на process.env.ROLE_AKADEMKA_ID
     { id: process.env.CHANNEL_AKADEMKA_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AKADEMKA_ID, nameTemplate: '🎓 Academy: ' },
     { id: process.env.CHANNEL_ONLINE_ID, type: 'ONLINE_MEMBERS', nameTemplate: '👤 Online Members: ' },
     { id: process.env.CHANNEL_AFK_ID, type: 'ROLE_COUNT', roleId: process.env.ROLE_AFK_ID, nameTemplate: '☕ AFK (Role): ' },
@@ -45,7 +44,7 @@ const client = new Client({
     ],
     partials: [Partials.Channel, Partials.GuildMember],
     
-    // АГРЕСИВНЕ КЕШУВАННЯ ДЛЯ ONLINE MEMBERS
+    // АГРЕСИВНЕ КЕШУВАННЯ (запобігає помилкам Online Members)
     sweepers: {
         users: {
             interval: 3600,
@@ -119,7 +118,6 @@ client.once("ready", async () => {
     console.log(`✅ Увійшов як ${client.user.tag}`);
 
     // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
-    // Додано посилене логування помилок для діагностики GUILD_ID
     const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
         console.error('❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер. Статистика не працюватиме.', err.message);
         console.error(`[FATAL] Перевірте Secret GUILD_ID: Чи він встановлений і чи бот має до нього доступ?`); 
