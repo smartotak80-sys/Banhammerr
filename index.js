@@ -1,4 +1,4 @@
-// index.js (ФІНАЛЬНА ВЕРСІЯ З ДІАГНОСТИКОЮ ID)
+// index.js (ФІНАЛЬНА ВЕРСІЯ: Статистика + Заявки)
 
 require("dotenv").config();
 const {
@@ -15,7 +15,7 @@ const {
     TextInputStyle,
 } = require("discord.js");
 
-// ------------------ ЗМІННІ КОНФІГУРАЦІЇ (ОБИДВА БОТИ) ------------------
+// ------------------ ЗМІННІ КОНФІГУРАЦІЇ ------------------
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const APPLICATION_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;
@@ -34,15 +34,18 @@ const STATS_CHANNELS = [
 
 const client = new Client({ 
     intents: [
+        // INTENTS ДЛЯ СТАТИСТИКИ
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences, 
+        GatewayIntentBits.GuildPresences, // КРИТИЧНО ДЛЯ ONLINE MEMBERS
+        // INTENTS ДЛЯ ЗАЯВОК
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates 
     ],
-    partials: [Partials.Channel]
+    // ДОДАНО GuildMember ДЛЯ НАДІЙНОЇ ОБРОБКИ ПОДІЙ З РОЛЯМИ
+    partials: [Partials.Channel, Partials.GuildMember] 
 });
 
 // --- ФУНКЦІЇ СТАТИСТИКИ ---
@@ -99,35 +102,24 @@ function triggerOnlineMembersUpdate() {
     }
 }
 
+
 // ------------------ READY (ОБ'ЄДНАНО) ------------------
 
 client.once("ready", async () => {
     console.log(`✅ Увійшов як ${client.user.tag}`);
 
-    // --- САМОДІАГНОСТИКА ---
-    console.log("======================================");
-    console.log("  🛑 ПЕРЕВІРТЕ ID ВАШОГО СЕРВЕРА (GUILD ID):");
-    console.log(`  GUILD_ID: ${GUILD_ID}`);
-    console.log("  APPLICATION_CHANNEL_ID: Це ID, куди буде надіслана кнопка заявки.");
-    console.log(`  APPLICATION_CHANNEL_ID: ${APPLICATION_CHANNEL_ID}`);
-    console.log("  RECRUIT_CHANNEL_ID: Це ID, куди будуть надходити нові заявки.");
-    console.log(`  RECRUIT_CHANNEL_ID: ${RECRUIT_CHANNEL_ID}`);
-    console.log("======================================");
-
     // --- 1. ІНІЦІАЛІЗАЦІЯ СТАТИСТИКИ ---
     const guild = await client.guilds.fetch(GUILD_ID).catch(err => {
-        console.error('❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер. Перевірте GUILD_ID!');
-        console.error(`Деталі помилки: ${err.message}`);
+        console.error('❌ КРИТИЧНА ПОМИЛКА: Не знайдено сервер. Статистика не працюватиме.', err.message);
         return null;
     });
 
     if (guild) {
         await guild.members.fetch().catch(e => console.error("❌ Помилка: Не вдалося завантажити членів сервера. Перевірте GuildMembers Intent.", e.message));
         updateChannelStats(); 
-    } else {
-         console.error("❌ МОДУЛЬ СТАТИСТИКИ ВИМКНЕНО ЧЕРЕЗ НЕПРАВИЛЬНИЙ GUILD_ID.");
     }
     
+    // Регулярне оновлення Online Members
     setInterval(updateChannelStats, 10 * 60 * 1000); 
 
     // --- 2. ІНІЦІАЛІЗАЦІЯ ЗАЯВОК ---
@@ -151,7 +143,6 @@ client.once("ready", async () => {
             embeds: [embed],
             components: [new ActionRowBuilder().addComponents(applicationButton)]
         });
-        console.log('✅ Повідомлення з кнопкою заявки успішно надіслано.');
     } catch (e) {
         console.error("❌ Не вдалося надіслати повідомлення заявки. Перевірте права бота.", e.message);
     }
@@ -160,6 +151,7 @@ client.once("ready", async () => {
 
 // ------------------ ОБРОБКА ПОДІЙ (ІНТЕРАКЦІЇ ТА СТАТУСИ) ------------------
 
+// Оновлення Online Members (ВИПРАВЛЕНО: Безпечні перевірки)
 client.on('presenceUpdate', (oldPresence, newPresence) => {
     const oldStatus = oldPresence?.status || 'offline'; 
     const newStatus = newPresence?.status || 'offline';
@@ -168,7 +160,11 @@ client.on('presenceUpdate', (oldPresence, newPresence) => {
     }
 });
 
+// Оновлення ролей (ВИПРАВЛЕНО: Обробка Partial GuildMember)
 client.on('guildMemberUpdate', (oldMember, newMember) => {
+    if (oldMember.partial) oldMember.fetch().catch(() => {}); 
+    if (newMember.partial) newMember.fetch().catch(() => {});
+    
     if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
         triggerRoleChannelUpdate();
     }
@@ -179,7 +175,7 @@ client.on('guildMemberRemove', () => triggerRoleChannelUpdate());
 
 
 client.on(Events.InteractionCreate, async (interaction) => {
-    // ... (Логіка заявок, модалів та кнопок залишається без змін) ...
+    // --- ЛОГІКА ЗАЯВОК (ІНТЕРАКЦІЇ) ---
 
     if (interaction.isButton() && interaction.customId === "apply") {
         const modal = new ModalBuilder().setCustomId("application_form").setTitle("Заявка на вступ");
