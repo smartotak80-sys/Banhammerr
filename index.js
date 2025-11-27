@@ -53,10 +53,13 @@ client.once("ready", async () => {
         .setColor("#808080")
         .setFooter({ text: new Date().toLocaleString("uk-UA") });
 
-    await channel.send({
-        embeds: [embed],
-        components: [new ActionRowBuilder().addComponents(applicationButton)]
-    });
+    // Цей блок надсилає повідомлення лише один раз, якщо ви його не видаляли
+    // Якщо повідомлення вже існує, варто замінити цей блок на логіку перевірки
+    // або вручну видалити старе повідомлення в каналі Discord.
+    // await channel.send({
+    //     embeds: [embed],
+    //     components: [new ActionRowBuilder().addComponents(applicationButton)]
+    // });
 });
 
 // ------------------ INTERACTIONS ------------------
@@ -83,13 +86,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.showModal(modal);
     }
 
-    // ---------- МОДАЛ ЗАЯВКИ ----------
+    // ---------- МОДАЛ ЗАЯВКИ (ВИПРАВЛЕНО) ----------
     if (interaction.isModalSubmit() && interaction.customId === "application_form") {
 
         const embed = new EmbedBuilder()
             .setTitle("📥 Нова заявка")
             .addFields(
-                { name: "Discord", value: interaction.fields.getTextInputValue("discord") },
+                // ВИПРАВЛЕННЯ: Використовуємо згадку користувача замість неіснуючого поля "discord"
+                { name: "Discord", value: interaction.user.toString() }, 
                 { name: "RL Ім’я / Вік", value: interaction.fields.getTextInputValue("rlNameAge") },
                 { name: "Онлайн / Часовий пояс", value: interaction.fields.getTextInputValue("online") },
                 { name: "Сімʼї", value: interaction.fields.getTextInputValue("families") },
@@ -140,6 +144,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await user.send(`✅ Ваша заявка була **прийнята**.\nВаше повідомлення: ${text}`);
 
+        // Оновлюємо оригінальне повідомлення, щоб показати, що заявка опрацьована
         return interaction.update({ content: "Відповідь надіслана!", components: [], embeds: interaction.message.embeds });
     }
 
@@ -173,6 +178,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         await user.send(`❌ Ваша заявка була **відхилена**.\nПричина: ${reason}`);
 
+        // Оновлюємо оригінальне повідомлення, щоб показати, що заявка опрацьована
         return interaction.update({
             content: "Заявку відхилено!",
             components: [],
@@ -183,4 +189,3 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // ------------------ LOGIN ------------------
 client.login(process.env.TOKEN);
-
