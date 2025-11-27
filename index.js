@@ -70,7 +70,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             .setTitle("Заявка на вступ");
 
         const fields = [
-            new TextInputBuilder().setCustomId("discord").setLabel("Ваш Discord").setStyle(TextInputStyle.Short).setRequired(true),
             new TextInputBuilder().setCustomId("rlNameAge").setLabel("RL Ім’я / Вік").setStyle(TextInputStyle.Short).setRequired(true),
             new TextInputBuilder().setCustomId("online").setLabel("Онлайн / Часовий пояс").setStyle(TextInputStyle.Short).setRequired(true),
             new TextInputBuilder().setCustomId("families").setLabel("Де були раніше (сімʼї)").setStyle(TextInputStyle.Paragraph).setRequired(true),
@@ -184,3 +183,4 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // ------------------ LOGIN ------------------
 client.login(process.env.TOKEN);
+
