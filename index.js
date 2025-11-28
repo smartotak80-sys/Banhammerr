@@ -20,15 +20,6 @@ const GUILD_ID = process.env.GUILD_ID;
 const APPLICATION_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;
 const RECRUIT_CHANNEL_ID = process.env.RECRUIT_CHANNEL_ID;
 
-const CHANNEL_AFK_ID = process.env.CHANNEL_AFK_ID;
-const CHANNEL_AKADEMKA_ID = process.env.CHANNEL_AKADEMKA_ID;
-const CHANNEL_BARRACUDA_ID = process.env.CHANNEL_BARRACUDA_ID;
-const CHANNEL_ONLINE_ID = process.env.CHANNEL_ONLINE_ID;
-
-const ROLE_AFK_ID = process.env.ROLE_AFK_ID;
-const ROLE_AKADEMKA_ID = process.env.ROLE_AKADEMKA_ID;
-const ROLE_BARRACUDA_ID = process.env.ROLE_BARRACUDA_ID;
-
 // === Client ===
 const client = new Client({
     intents: [
@@ -67,28 +58,28 @@ async function updateStats() {
         const guild = client.guilds.cache.get(GUILD_ID);
         if (!guild) return;
 
-        const afk = countMembers(guild, ROLE_AFK_ID);
-        const akademka = countMembers(guild, ROLE_AKADEMKA_ID);
-        const barracuda = countMembers(guild, ROLE_BARRACUDA_ID);
+        const afk = countMembers(guild, process.env.ROLE_AFK_ID);
+        const akademka = countMembers(guild, process.env.ROLE_AKADEMKA_ID);
+        const barracuda = countMembers(guild, process.env.ROLE_BARRACUDA_ID);
         const online = countOnline(guild);
 
         await safeSetName(
-            guild.channels.cache.get(CHANNEL_AFK_ID),
+            guild.channels.cache.get(process.env.CHANNEL_AFK_ID),
             `☕ AFK: ${afk}`
         );
 
         await safeSetName(
-            guild.channels.cache.get(CHANNEL_AKADEMKA_ID),
+            guild.channels.cache.get(process.env.CHANNEL_AKADEMKA_ID),
             `📚 Академія: ${akademka}`
         );
 
         await safeSetName(
-            guild.channels.cache.get(CHANNEL_BARRACUDA_ID),
+            guild.channels.cache.get(process.env.CHANNEL_BARRACUDA_ID),
             `🦈 Barracuda: ${barracuda}`
         );
 
         await safeSetName(
-            guild.channels.cache.get(CHANNEL_ONLINE_ID),
+            guild.channels.cache.get(process.env.CHANNEL_ONLINE_ID),
             `🟢 Online: ${online}`
         );
 
